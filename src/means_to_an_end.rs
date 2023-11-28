@@ -17,8 +17,6 @@ impl TryFrom<[u8; 9]> for Message {
     type Error = anyhow::Error;
 
     fn try_from(bytes: [u8; 9]) -> anyhow::Result<Self> {
-        info!("Decoding message with bytes: {:?}", bytes);
-
         let message = match bytes[0] as char {
             'I' => {
                 let timestamp = u32::from_be_bytes(bytes[1..5].try_into()?);
@@ -74,6 +72,7 @@ async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow
                 // If the min time is greater than the max time, return an error
                 if from > to {
                     writer.write_i32(0).await?;
+                    continue;
                 }
 
                 // Otherwise, return the average of all prices between the min and max time
