@@ -8,8 +8,8 @@ use tokio::{
 
 #[derive(Debug)]
 enum Message {
-    Insert { timestamp: u64, price: i64 },
-    Query { from: u64, to: u64 },
+    Insert { timestamp: u32, price: i32 },
+    Query { from: u32, to: u32 },
     Unknown,
 }
 
@@ -19,14 +19,14 @@ impl TryFrom<[u8; 9]> for Message {
     fn try_from(bytes: [u8; 9]) -> anyhow::Result<Self> {
         let message = match bytes[0] as char {
             'I' => {
-                let timestamp = u64::from_be_bytes(bytes[1..5].try_into()?);
-                let price = i64::from_be_bytes(bytes[5..9].try_into()?);
+                let timestamp = u32::from_be_bytes(bytes[1..5].try_into()?);
+                let price = i32::from_be_bytes(bytes[5..9].try_into()?);
                 Message::Insert { timestamp, price }
             }
 
             'Q' => {
-                let from = u64::from_be_bytes(bytes[1..5].try_into()?);
-                let to = u64::from_be_bytes(bytes[5..9].try_into()?);
+                let from = u32::from_be_bytes(bytes[1..5].try_into()?);
+                let to = u32::from_be_bytes(bytes[5..9].try_into()?);
                 Message::Query { from, to }
             }
 
@@ -50,7 +50,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
 
 async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow::Result<()> {
     // Init DB
-    let mut db: BTreeMap<u64, i64> = BTreeMap::new();
+    let mut db: BTreeMap<u32, i32> = BTreeMap::new();
 
     let (read_half, mut writer) = stream.split();
     let mut reader = BufReader::new(read_half);
@@ -71,22 +71,25 @@ async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow
 
                 // If the min time is greater than the max time, return an error
                 if from > to {
-                    writer.write_i64(0).await?;
+                    writer.write_i32(0).await?;
                     continue;
                 }
 
                 // Otherwise, return the average of all prices between the min and max time
+                let mut count = 0;
+                let mut total_price = 0;
+                for (_time, price) in db.range((Included(&from), Included(&to))) {
+                    count += 1;
+                    total_price += price;
+                }
 
-                let (count, price) = db
-                    .range((Included(&from), Included(&to)))
-                    .fold((0, 0), |(count, sum), (_timestamp, price)| {
-                        (count + 1, sum + price)
-                    });
+                let mean = if count > 0 { total_price / count } else { 0 };
 
-                let average = if count > 0 { price / count } else { 0 };
-
-                info!("query result: mean {}", average);
-                writer.write_i64(average).await?;
+                info!(
+                    "query result: sum: {} / count: {} = mean {}",
+                    total_price, count, mean
+                );
+                writer.write_i32(mean).await?;
             }
 
             Message::Unknown => {
