@@ -83,13 +83,13 @@ async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow
                     total_price += *price as i64;
                 }
 
-                let mean: i64 = if count > 0 { total_price / count } else { 0 };
+                let mean: i32 = if count > 0 { total_price / count } else { 0 } as i32;
 
                 info!(
                     "query result: sum: {} / count: {} = mean {}",
                     total_price, count, mean
                 );
-                writer.write_i64(mean).await?;
+                writer.write_i32(mean).await?;
             }
 
             Message::Unknown => {
