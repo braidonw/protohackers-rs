@@ -59,7 +59,7 @@ fn handle_correct_request(request: Request) -> anyhow::Result<String> {
     let request_num_is_prime = is_prime(request.number as u64);
     let response = Response {
         method: request.method,
-        is_prime: request_num_is_prime,
+        prime: request_num_is_prime,
     };
 
     println!("Sending {:?}", &response);
