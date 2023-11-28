@@ -1,6 +1,5 @@
 use log::info;
 use std::collections::BTreeMap;
-use std::ops::Bound::Included;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -8,8 +7,8 @@ use tokio::{
 
 #[derive(Debug)]
 enum Message {
-    Insert { timestamp: u32, price: i32 },
-    Query { from: u32, to: u32 },
+    Insert { timestamp: i32, price: i32 },
+    Query { from: i32, to: i32 },
     Unknown,
 }
 
@@ -19,14 +18,14 @@ impl TryFrom<[u8; 9]> for Message {
     fn try_from(bytes: [u8; 9]) -> anyhow::Result<Self> {
         let message = match bytes[0] as char {
             'I' => {
-                let timestamp = u32::from_be_bytes(bytes[1..5].try_into()?);
+                let timestamp = i32::from_be_bytes(bytes[1..5].try_into()?);
                 let price = i32::from_be_bytes(bytes[5..9].try_into()?);
                 Message::Insert { timestamp, price }
             }
 
             'Q' => {
-                let from = u32::from_be_bytes(bytes[1..5].try_into()?);
-                let to = u32::from_be_bytes(bytes[5..9].try_into()?);
+                let from = i32::from_be_bytes(bytes[1..5].try_into()?);
+                let to = i32::from_be_bytes(bytes[5..9].try_into()?);
                 Message::Query { from, to }
             }
 
@@ -50,7 +49,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
 
 async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow::Result<()> {
     // Init DB
-    let mut db: BTreeMap<u32, i32> = BTreeMap::new();
+    let mut db: BTreeMap<i32, i32> = BTreeMap::new();
 
     let (read_half, mut writer) = stream.split();
     let mut reader = BufReader::new(read_half);
@@ -68,28 +67,8 @@ async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow
 
             Message::Query { from, to } => {
                 info!("Received query message {:?} from {}", message, address);
-
-                // If the min time is greater than the max time, return an error
-                if from > to {
-                    writer.write_i32(0).await?;
-                    continue;
-                }
-
-                // Otherwise, return the average of all prices between the min and max time
-                let mut count: i64 = 0;
-                let mut total_price: i64 = 0;
-                for (_time, &price) in db.range((Included(&from), Included(&to))) {
-                    count += 1;
-                    total_price += price as i64;
-                }
-
-                let mean = if count > 0 { total_price / count } else { 0 };
-
-                info!(
-                    "query result: sum: {} / count: {} = mean {}",
-                    total_price, count, mean
-                );
-                writer.write_i32(mean as i32).await?;
+                let mean = range_average(&db, from, to);
+                writer.write_i32(mean).await?;
             }
 
             Message::Unknown => {
@@ -99,4 +78,34 @@ async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow
     }
 
     Ok(())
+}
+
+fn range_average(map: &BTreeMap<i32, i32>, low: i32, high: i32) -> i32 {
+    // If the min time is greater than the max time, return an error
+    if high < low {
+        return 0;
+    }
+
+    let mut total: i64 = 0;
+    let mut n: i64 = 0;
+
+    for (&t, &p) in map.iter() {
+        if t < low {
+            continue;
+        } else if t <= high {
+            total += p as i64;
+            n += 1;
+        } else {
+            break;
+        }
+    }
+
+    let mean = if n == 0 { 0 } else { (total / n) as i32 };
+
+    info!(
+        "range_average: total: {} / count: {} = mean {}",
+        total, n, mean
+    );
+
+    mean
 }
