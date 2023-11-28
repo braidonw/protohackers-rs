@@ -1,3 +1,4 @@
+use log::info;
 use primal::is_prime;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -7,7 +8,7 @@ use tokio::{
 
 pub async fn run(port: &str) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port);
-    println!("Running prime time server on {}...", &addr);
+    info!("Running prime time server on {}...", &addr);
 
     let listener = TcpListener::bind(&addr).await?;
 
@@ -39,7 +40,7 @@ async fn prime_handler(stream: TcpStream, address: std::net::SocketAddr) -> anyh
         }
 
         let request: Request = serde_json::from_str(line.trim())?;
-        println!("Received {:?} from {}", request, address);
+        info!("Received {:?} from {}", request, address);
 
         let response = match request.method.as_str() {
             "isPrime" => handle_correct_request(request)?,
@@ -62,6 +63,6 @@ fn handle_correct_request(request: Request) -> anyhow::Result<String> {
         prime: request_num_is_prime,
     };
 
-    println!("Sending {:?}", &response);
+    info!("Sending {:?}", &response);
     serde_json::to_string(&response).map_err(|e| e.into())
 }

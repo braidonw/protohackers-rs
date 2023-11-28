@@ -1,10 +1,11 @@
+use log::info;
 use tokio::{
     io::copy,
     net::{TcpListener, TcpStream},
 };
 
 pub async fn run(port: &str) -> anyhow::Result<()> {
-    println!("Running smoke test...");
+    info!("Running smoke test...");
     let addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(addr).await?;
 
@@ -16,7 +17,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
 
 async fn handle_stream(mut stream: TcpStream) -> anyhow::Result<()> {
     let (mut reader, mut writer) = stream.split();
-    println!("Copying data...");
+    info!("Copying data...");
     copy(&mut reader, &mut writer).await?;
     Ok(())
 }

@@ -17,6 +17,8 @@ impl TryFrom<[u8; 9]> for Message {
     type Error = anyhow::Error;
 
     fn try_from(bytes: [u8; 9]) -> anyhow::Result<Self> {
+        info!("Decoding message with bytes: {:?}", bytes);
+
         let message = match bytes[0] as char {
             'I' => {
                 let timestamp = u32::from_be_bytes(bytes[1..5].try_into()?);
