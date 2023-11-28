@@ -7,7 +7,9 @@ use tokio::{
 
 pub async fn run(port: &str) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port);
-    let listener = TcpListener::bind(addr).await?;
+    println!("Running prime time server on {}...", &addr);
+
+    let listener = TcpListener::bind(&addr).await?;
 
     loop {
         let (stream, address) = listener.accept().await?;
