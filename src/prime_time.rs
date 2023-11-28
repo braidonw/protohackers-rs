@@ -26,8 +26,7 @@ struct Request {
 #[derive(Debug, Serialize, Deserialize)]
 struct Response {
     method: String,
-    #[serde(rename = "isPrime")]
-    is_prime: bool,
+    prime: bool,
 }
 
 async fn prime_handler(stream: TcpStream, address: std::net::SocketAddr) -> anyhow::Result<()> {
