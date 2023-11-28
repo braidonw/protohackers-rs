@@ -77,19 +77,19 @@ async fn handler(mut stream: TcpStream, address: std::net::SocketAddr) -> anyhow
 
                 // Otherwise, return the average of all prices between the min and max time
                 let mut count = 0;
-                let mut total_price = 0;
+                let mut total_price: i64 = 0;
                 for (_time, price) in db.range((Included(&from), Included(&to))) {
                     count += 1;
-                    total_price += price;
+                    total_price += *price as i64;
                 }
 
-                let mean = if count > 0 { total_price / count } else { 0 };
+                let mean: i64 = if count > 0 { total_price / count } else { 0 };
 
                 info!(
                     "query result: sum: {} / count: {} = mean {}",
                     total_price, count, mean
                 );
-                writer.write_i32(mean).await?;
+                writer.write_i64(mean).await?;
             }
 
             Message::Unknown => {
