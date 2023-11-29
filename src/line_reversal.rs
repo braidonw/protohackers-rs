@@ -42,6 +42,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
             },
 
             resp = rx.recv() => {
+                info!("Received packet from main channel: {:?}", resp);
                 let packet = resp.expect("Failed to receive packet from main channel");
                 handle_receive_internal_packet(packet, &socket, &mut sessions).await;
             }

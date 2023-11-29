@@ -46,6 +46,7 @@ impl LrcpClient {
     pub async fn run(&mut self) {
         loop {
             while let Some(packet) = self.response_queue.pop_front() {
+                info!("Sending packet: {:?}", &packet);
                 self.handle_respond(packet)
                     .await
                     .expect("Failed to send packet");
