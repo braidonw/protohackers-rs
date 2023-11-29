@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
 
 use super::protocol::{Packet, Payload, SessionId};
@@ -66,6 +66,7 @@ impl LrcpClient {
     }
 
     async fn handle_packet(&mut self, packet: Packet) {
+        info!("Handing client packet: {:?}", &packet);
         match packet.payload {
             // If they connect, we ack
             Payload::Connect => {
