@@ -37,6 +37,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
     loop {
         tokio::select! {
             (packet, address) = read_packet(&socket) => {
+                info!("Received packet from address: {}", address);
                 handle_receive_client_packet(packet, address, &mut sessions, tx.clone()).await;
             },
 
@@ -71,16 +72,16 @@ async fn handle_receive_client_packet(
     sessions: &mut Sessions,
     main_tx: UnboundedSender<Packet>,
 ) {
+    info!("Handing client packet: {:?}", &packet);
     match packet.payload {
         Payload::Connect => {
             // If the session exists, ignore the message
-            if let Some(session) = sessions.get(&packet.session_id) {
-                error!("Session already exists: {:?}", session.address);
-
+            if let Some(_session) = sessions.get(&packet.session_id) {
                 return;
             }
 
             // Create a new session
+            info!("Creating a new session for {:?}", packet.session_id);
             let (packet_tx, packet_rx) = channel::<Packet>(CHANNEL_SIZE);
             let session = Session {
                 tx: packet_tx,
