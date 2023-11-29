@@ -14,7 +14,6 @@ impl TryFrom<&[u8]> for SessionId {
     type Error = anyhow::Error;
 
     fn try_from(bytes: &[u8]) -> anyhow::Result<Self> {
-        dbg!(&bytes);
         let id_str = String::from_utf8_lossy(bytes);
         let id: i32 = str::parse(&id_str)?;
         Ok(SessionId(id))
@@ -102,7 +101,6 @@ impl TryFrom<&[u8]> for Packet {
     type Error = anyhow::Error;
 
     fn try_from(bytes: &[u8]) -> anyhow::Result<Self> {
-        dbg!(&bytes);
         let len = bytes.len();
         if bytes.is_empty() {
             return Err(anyhow::anyhow!("Empty packet"));
@@ -119,8 +117,6 @@ impl TryFrom<&[u8]> for Packet {
             .ok_or(anyhow::anyhow!("Invalid packet: second slash not found"))?;
 
         let kind = &bytes[1..second_slash];
-        let kind_str = String::from_utf8_lossy(kind);
-        dbg!(kind_str);
 
         let third_slash = 1
             + second_slash
@@ -143,8 +139,6 @@ impl TryFrom<&[u8]> for Packet {
                         .ok_or(anyhow::anyhow!(
                             "Invalid packet: Data packet but fourth slash not found"
                         ))?;
-
-                dbg!(fourth_slash, len);
 
                 // There should be data between the fourth slash and the end of the message
                 if fourth_slash == len - 1 {
