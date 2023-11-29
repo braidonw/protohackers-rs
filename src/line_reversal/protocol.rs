@@ -95,6 +95,13 @@ impl Packet {
         bytes.push(b'/');
         bytes
     }
+
+    pub fn new(session_id: SessionId, payload: Payload) -> Self {
+        Self {
+            session_id,
+            payload,
+        }
+    }
 }
 
 impl TryFrom<&[u8]> for Packet {
