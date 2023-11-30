@@ -58,7 +58,20 @@ impl LrcpSession {
     }
 
     pub async fn run(&mut self) {
-        todo!()
+        info!(
+            "New session connected. session_id={:?}, peer_address={}",
+            self.id, self.address
+        );
+
+        loop {
+            tokio::select! {
+                Some(message) = self.message_rx.recv() => {
+                    if self.handle_message(message).await.is_err() {
+                        info!("Session closed. session={:?}, address={}", self.id, self.address);
+                    };
+                }
+            }
+        }
     }
 
     async fn ack(&self, position: u32) -> anyhow::Result<()> {
