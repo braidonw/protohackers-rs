@@ -6,7 +6,7 @@ use nom::sequence::delimited;
 use nom::{character::complete::digit1, IResult};
 use nom::{error, AsBytes};
 
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct SessionId(u32);
 
 #[derive(Debug, PartialEq)]
@@ -20,7 +20,7 @@ pub enum Payload {
 #[derive(Debug)]
 pub struct Message {
     pub session: SessionId,
-    payload: Payload,
+    pub payload: Payload,
 }
 
 impl Message {
@@ -34,6 +34,34 @@ impl Message {
 
     pub fn session_id(&self) -> &SessionId {
         &self.session
+    }
+
+    pub fn new_connect(session: SessionId) -> Self {
+        Self {
+            session,
+            payload: Payload::Connect,
+        }
+    }
+
+    pub fn new_close(session: SessionId) -> Self {
+        Self {
+            session,
+            payload: Payload::Close,
+        }
+    }
+
+    pub fn new_ack(session: SessionId, position: u32) -> Self {
+        Self {
+            session,
+            payload: Payload::Ack { position },
+        }
+    }
+
+    pub fn new_data(session: SessionId, data: Vec<u8>, position: u32) -> Self {
+        Self {
+            session,
+            payload: Payload::Data { data, position },
+        }
     }
 
     pub fn to_packet(&self) -> Vec<u8> {

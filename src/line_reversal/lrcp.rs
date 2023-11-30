@@ -1,8 +1,13 @@
 use log::info;
+use std::net::SocketAddr;
 use tokio::sync::mpsc::{Receiver, UnboundedSender};
 use tokio::time::Sleep;
 
-use super::protocol::{Packet, Payload, SessionId};
+use super::message::{Message, Payload, SessionId};
+use std::sync::Arc;
+use std::sync::RwLock;
+use tokio::net::UdpSocket;
+
 use std::collections::VecDeque;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -14,136 +19,217 @@ const CONNECTION_TIMEOUT: Duration = Duration::from_secs(20);
 /// we will send it again.
 const RETRANSMISSION_TIMEOUT: Duration = Duration::from_secs(3);
 
-pub struct LrcpClient {
+pub struct LrcpSession {
     // Identifies the session
     id: SessionId,
-    // A queue for sending responses to the client
-    response_queue: VecDeque<Packet>,
 
-    packet_rx: Receiver<Packet>,
-    main_tx: UnboundedSender<Packet>,
+    // The address of the client
+    address: SocketAddr,
+    socket: Arc<UdpSocket>,
 
-    // The highest incoming position
-    in_position: i32,
-    // The highest outgoing position
-    out_position: i32,
-    total_data_length: i32,
+    message_rx: Receiver<Message>,
+
+    connected: bool,
+    data: String,
+
+    bytes_received: u32,
+    bytes_sent: u32,
+    bytes_acked: Arc<RwLock<u32>>,
 }
 
-impl LrcpClient {
+impl LrcpSession {
     pub fn new(
         id: SessionId,
-        packet_rx: Receiver<Packet>,
-        main_tx: UnboundedSender<Packet>,
+        socket: Arc<UdpSocket>,
+        address: SocketAddr,
+        message_rx: Receiver<Message>,
     ) -> Self {
         Self {
             id,
-            response_queue: VecDeque::new(),
-            packet_rx,
-            main_tx,
-            total_data_length: 0,
-            in_position: 0,
-            out_position: 0,
-        }
-    }
-
-    fn update_in_position(&mut self, pos: i32) {
-        if self.in_position < pos {
-            self.in_position = pos;
+            address,
+            socket,
+            message_rx,
+            connected: false,
+            data: String::new(),
+            bytes_received: 0,
+            bytes_sent: 0,
+            bytes_acked: Arc::new(RwLock::new(0)),
         }
     }
 
     pub async fn run(&mut self) {
-        loop {
-            while let Some(packet) = self.response_queue.pop_front() {
-                info!("Sending packet: {:?}", &packet);
-                self.handle_respond(packet)
-                    .await
-                    .expect("Failed to send packet");
+        todo!()
+    }
+
+    async fn ack(&self, position: u32) -> anyhow::Result<()> {
+        let response = Message::new_ack(self.id.clone(), position);
+        info!("Acking message: {:?}", &response);
+        match self
+            .socket
+            .send_to(&response.to_packet(), &self.address)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(anyhow::anyhow!("Failed to send packet: {}", e)),
+        }
+    }
+
+    async fn close(&mut self) -> anyhow::Result<()> {
+        let response = Message::new_close(self.id.clone());
+        info!("Closing session: {:?}", &response);
+        self.socket
+            .send_to(&response.to_packet(), &self.address)
+            .await
+            .expect("Failed to send packet");
+
+        self.message_rx.close();
+
+        Err(anyhow::anyhow!("Session closed"))
+    }
+
+    async fn handle_message(&mut self, msg: Message) -> anyhow::Result<()> {
+        info!("Handling new message: {:?}", &msg);
+        match msg.payload {
+            Payload::Connect => {
+                self.connected = true;
+                self.ack(0).await
             }
 
-            tokio::select! {
-                Some(packet) = self.packet_rx.recv() => {
-                    self.handle_packet(packet).await;
-                },
+            Payload::Close => self.close().await,
+
+            Payload::Ack { position } => {
+                if !self.connected {
+                    self.close().await?;
+                }
+
+                if position > self.bytes_sent {
+                    info!(
+                        "Unexpected Ack: {:?}. Current Bytes Sent: {}",
+                        &msg, self.bytes_sent
+                    );
+                    self.close().await?;
+                }
+
+                let mut acked_bytes = self.bytes_acked.write().unwrap();
+                *acked_bytes = position;
+
+                Ok(())
+            }
+
+            Payload::Data { data, position } => {
+                if !self.connected {
+                    self.close().await?;
+                }
+
+                if position > self.bytes_received {
+                    self.ack(self.bytes_received).await?;
+                    return Ok(());
+                }
+
+                let data_position = self.bytes_received - position;
+                if data_position as usize > data.len() {
+                    info!(
+                        "Message already seen. Current Bytes Received: {}",
+                        self.bytes_received
+                    );
+                    return Ok(());
+                }
+
+                let new_data = &data[data_position as usize..];
+                self.data.push_str(&String::from_utf8_lossy(new_data));
+                self.bytes_received += new_data.len() as u32;
+                self.ack(self.bytes_received).await?;
+
+                if new_data.contains(&b'\n') {
+                    for line in self
+                        .data
+                        .split_inclusive("\n")
+                        .filter(|line| line.ends_with('\n'))
+                    {
+                        let reversed_line = reverse_line(line);
+                        self.send_line(reversed_line).await;
+                    }
+                    if let Some(last_str) = self.data.split_inclusive("\n").last() {
+                        if last_str.ends_with('\n') {
+                            info!("Clearing buffer data. session_id={:?}", self.id);
+                            self.data.clear();
+                        } else {
+                            info!(
+                                "Dropping already sent buffer data. session_id={:?}",
+                                self.id
+                            );
+                            self.data = last_str.to_owned();
+                        }
+                    }
+                }
+                Ok(())
             }
         }
     }
 
-    async fn handle_respond(&self, packet: Packet) -> anyhow::Result<()> {
-        self.main_tx
-            .send(packet)
-            .map_err(|_| anyhow::anyhow!("Failed to send packet"))
+    async fn send_line(&self, line: String) {
+        let messages = chunk_lines(line)
+            .iter()
+            .map(|line| {
+                let position = self.bytes_sent;
+                let message =
+                    Message::new_data(self.id.clone(), line.as_bytes().to_vec(), position);
+                message
+            })
+            .collect();
+
+        // Timeout
+        //
+        tokio::spawn(send_messages(
+            self.socket.clone(),
+            self.address,
+            messages,
+            self.bytes_acked.clone(),
+        ));
     }
+}
 
-    async fn handle_packet(&mut self, packet: Packet) {
-        info!("Handing client packet: {:?}", &packet);
-        match packet.payload {
-            // If they connect, we ack
-            Payload::Connect => {
-                let response = Packet::new(
-                    self.id.clone(),
-                    Payload::Ack {
-                        pos: self.in_position,
-                    },
-                );
-                self.response_queue.push_back(response);
-            }
+fn chunk_lines(line: String) -> Vec<String> {
+    line.as_bytes()
+        .chunks(900)
+        .map(|chunk| String::from_utf8_lossy(chunk).to_string())
+        .collect::<Vec<String>>()
+}
 
-            // If they send data, we reverse it and ack
-            Payload::Data { data, pos } => {
-                self.update_in_position(pos);
-                self.total_data_length += data.as_ref().len() as i32;
+async fn send_messages(
+    socket: Arc<UdpSocket>,
+    addr: SocketAddr,
+    messages: Vec<Message>,
+    bytes_acked: Arc<RwLock<u32>>,
+) {
+    let mut retransmission_timeout = tokio::time::interval(Duration::from_secs(3));
 
-                let response = Packet::new(
-                    self.id.clone(),
-                    Payload::Ack {
-                        pos: self.in_position,
-                    },
-                );
-                self.response_queue.push_back(response);
-            }
+    loop {
+        tokio::select! {
+            biased;
 
-            // If they ack, we update our out position
-            Payload::Ack { pos } => {
-                if self.out_position < pos {
-                    self.out_position = pos;
+            _ = retransmission_timeout.tick() => {
+                let most_recent_ack = { *bytes_acked.read().unwrap() };
+                let mut all_messages_acked = true;
+
+                for message in &messages {
+                    if let Payload::Data { position, ..} = message.payload {
+                        if position > most_recent_ack {
+                            all_messages_acked = false;
+                            socket.send_to(&message.to_packet(), &addr).await.unwrap();
+                        }
+                    }
+                }
+                if all_messages_acked {
+                    break;
                 }
             }
-
-            // If they close, we close
-            Payload::Close => {
-                let response = Packet::new(self.id.clone(), Payload::Close);
-                self.response_queue.push_back(response);
-            }
         }
     }
 }
 
-/// A sleeping future that will return a specific number when it resolves.
-///
-/// These are used to track whether retransmission is necessary.
-struct SleepTimer {
-    sleeper: Pin<Box<Sleep>>,
-    count: usize,
-}
-
-impl SleepTimer {
-    fn new(count: usize) -> SleepTimer {
-        SleepTimer {
-            sleeper: Box::pin(tokio::time::sleep(RETRANSMISSION_TIMEOUT)),
-            count,
-        }
-    }
-}
-
-impl Future for SleepTimer {
-    type Output = usize;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<usize> {
-        match (self.sleeper).as_mut().poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(()) => Poll::Ready(self.count),
-        }
-    }
+fn reverse_line(line: &str) -> String {
+    let mut reversed_line: String = line.trim_end().chars().rev().collect();
+    reversed_line.push('\n');
+    reversed_line
 }
