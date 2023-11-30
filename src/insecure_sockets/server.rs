@@ -96,7 +96,7 @@ impl Server {
     }
 }
 
-fn handle_message(message: &str) -> Result<String> {
+pub fn handle_message(message: &str) -> Result<String> {
     let mut jobs = parse_message(message)?;
     jobs.sort();
     let response: String = jobs.iter().take(1).map(|j| j.to_string()).collect();
