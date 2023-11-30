@@ -14,6 +14,7 @@ use self::{
 };
 
 mod lrcp;
+mod message;
 mod protocol;
 
 const BLOCK_SIZE: usize = 1024;

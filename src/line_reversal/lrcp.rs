@@ -1,8 +1,18 @@
-use log::{error, info};
-use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
+use log::info;
+use tokio::sync::mpsc::{Receiver, UnboundedSender};
+use tokio::time::Sleep;
 
 use super::protocol::{Packet, Payload, SessionId};
 use std::collections::VecDeque;
+use std::task::{Context, Poll};
+use std::time::Duration;
+use std::{future::Future, pin::Pin};
+
+/// If we receive no data from a connection for this long, we will close it.
+const CONNECTION_TIMEOUT: Duration = Duration::from_secs(20);
+/// If we don't receive an ack of a data packet after this amount of time,
+/// we will send it again.
+const RETRANSMISSION_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub struct LrcpClient {
     // Identifies the session
@@ -106,6 +116,34 @@ impl LrcpClient {
                 let response = Packet::new(self.id.clone(), Payload::Close);
                 self.response_queue.push_back(response);
             }
+        }
+    }
+}
+
+/// A sleeping future that will return a specific number when it resolves.
+///
+/// These are used to track whether retransmission is necessary.
+struct SleepTimer {
+    sleeper: Pin<Box<Sleep>>,
+    count: usize,
+}
+
+impl SleepTimer {
+    fn new(count: usize) -> SleepTimer {
+        SleepTimer {
+            sleeper: Box::pin(tokio::time::sleep(RETRANSMISSION_TIMEOUT)),
+            count,
+        }
+    }
+}
+
+impl Future for SleepTimer {
+    type Output = usize;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<usize> {
+        match (self.sleeper).as_mut().poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(()) => Poll::Ready(self.count),
         }
     }
 }
