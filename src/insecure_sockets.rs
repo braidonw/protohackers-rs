@@ -14,6 +14,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
     loop {
         let (stream, address) = listener.accept().await?;
         let server = insecure_sockets::server::Server::new(address)?;
+        info!("Accepted connection from {}", address);
 
         tokio::spawn(async move { server.run(stream).await });
     }

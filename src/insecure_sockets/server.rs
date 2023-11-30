@@ -69,10 +69,12 @@ impl Server {
     }
 
     pub async fn run(mut self, stream: TcpStream) -> Result<()> {
+        info!("Running insecure sockets server for {}...", &self.address);
         let mut reader = BufReader::new(stream);
         let mut line = String::new();
 
         reader.read_line(&mut line).await?;
+        info!("Received cipher: {}", line);
         let client = Client::new(line.as_bytes())?;
         info!("Initialized client with cipher: {:?}", client.cipher);
         self.client = Some(client);
