@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::{
     net::UdpSocket,
-    sync::mpsc::{channel, unbounded_channel, Sender, UnboundedSender},
+    sync::mpsc::{channel, unbounded_channel, Sender},
 };
 
 use self::{
@@ -30,7 +30,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
     let socket = Arc::new(UdpSocket::bind(&addr).await?);
     info!("Running Line Reversal server on {}...", &addr);
 
-    let (tx, mut rx) = unbounded_channel::<Message>();
+    let (_tx, mut rx) = unbounded_channel::<Message>();
 
     let mut sessions: BTreeMap<SessionId, Session> = BTreeMap::new();
 
@@ -38,7 +38,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
         tokio::select! {
             (message, address) = read_message(&socket) => {
                 info!("Received packet from address: {}", address);
-                handle_client_message(message, address, socket.clone(), &mut sessions, tx.clone()).await;
+                handle_client_message(message, address, socket.clone(), &mut sessions).await;
             },
 
             resp = rx.recv() => {
@@ -72,7 +72,6 @@ async fn handle_client_message(
     addr: SocketAddr,
     socket: Arc<UdpSocket>,
     sessions: &mut Sessions,
-    main_tx: UnboundedSender<Message>,
 ) {
     info!("Handing client message: {:?}", &message);
     match message.payload {
@@ -90,7 +89,6 @@ async fn handle_client_message(
                 address: addr,
             };
             sessions.insert(message.session.clone(), session);
-            let main_tx = main_tx;
 
             // Spawn a new task to handle the session
             tokio::spawn(async move {

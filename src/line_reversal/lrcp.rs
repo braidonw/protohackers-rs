@@ -1,17 +1,13 @@
 use log::info;
 use std::net::SocketAddr;
-use tokio::sync::mpsc::{Receiver, UnboundedSender};
-use tokio::time::Sleep;
+use tokio::sync::mpsc::Receiver;
 
 use super::message::{Message, Payload, SessionId};
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::net::UdpSocket;
 
-use std::collections::VecDeque;
-use std::task::{Context, Poll};
 use std::time::Duration;
-use std::{future::Future, pin::Pin};
 
 /// If we receive no data from a connection for this long, we will close it.
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(20);
@@ -156,13 +152,13 @@ impl LrcpSession {
                 if new_data.contains(&b'\n') {
                     for line in self
                         .data
-                        .split_inclusive("\n")
+                        .split_inclusive('\n')
                         .filter(|line| line.ends_with('\n'))
                     {
                         let reversed_line = reverse_line(line);
                         self.send_line(reversed_line).await;
                     }
-                    if let Some(last_str) = self.data.split_inclusive("\n").last() {
+                    if let Some(last_str) = self.data.split_inclusive('\n').last() {
                         if last_str.ends_with('\n') {
                             info!("Clearing buffer data. session_id={:?}", self.id);
                             self.data.clear();
