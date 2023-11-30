@@ -30,6 +30,8 @@ pub async fn session_handler(mut stream: TcpStream, address: SocketAddr) -> anyh
 
         read.read_until(0x00, &mut cipher).await?;
 
+        info!("Received cipher: {:?}", cipher);
+
         (read.into_inner(), cipher)
     };
 
@@ -39,12 +41,15 @@ pub async fn session_handler(mut stream: TcpStream, address: SocketAddr) -> anyh
     let mut reader = BufReader::new(read);
     while let Ok(_num_bytes) = reader.read_line(&mut line).await {
         let message = client.decode(unsafe { line.as_bytes_mut() })?;
+        info!("Received message: {:?}", message);
         let response = insecure_sockets::server::handle_message(&message)?;
+        info!("Sending response: {:?}", response);
         let response_bytes = client.encode(response)?;
 
         write.write_all(&response_bytes).await?;
         write.write_u8(0x00).await?;
         line.clear();
+        info!("Waiting for next message...");
     }
 
     Ok(())
