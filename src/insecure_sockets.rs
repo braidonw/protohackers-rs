@@ -6,14 +6,14 @@ use tokio::net::{TcpListener, TcpStream};
 
 pub async fn run(port: &str) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port);
-    info!("Running prime time server on {}...", &addr);
+    info!("Running insecure sockets server on {}...", &addr);
     let listener = TcpListener::bind(&addr).await?;
 
     loop {
         let (stream, address) = listener.accept().await?;
         info!("Accepted connection from {}", address);
 
-        tokio::spawn(async move { handle_connection(stream).await });
+        tokio::spawn(handle_connection(stream));
     }
 }
 
