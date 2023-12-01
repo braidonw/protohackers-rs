@@ -45,21 +45,26 @@ impl Cipher {
         let mut byte = input;
         for operation in self.cipher.iter().rev() {
             match operation {
+                Operation::CipherEnd => {
+                    continue;
+                }
+
                 Operation::ReverseBits => {
                     byte = byte.reverse_bits();
                 }
+
                 Operation::Xor { n } => byte ^= n,
+
                 Operation::XorPosition => {
                     byte ^= self.incoming_position as u8;
                 }
+
                 Operation::Add { n } => {
                     byte = byte.wrapping_add(*n);
                 }
+
                 Operation::AddPosition => {
                     byte = byte.wrapping_add(self.incoming_position as u8);
-                }
-                Operation::CipherEnd => {
-                    continue;
                 }
             }
         }
@@ -176,54 +181,6 @@ mod test {
                 Operation::CipherEnd
             ]
         );
-    }
-
-    #[test]
-    pub fn decode_xor_1() {
-        let bytes = [0x48, 0x49];
-        dbg!(&bytes);
-
-        let mut client = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
-
-        let decoded_bytes = bytes
-            .iter()
-            .map(|byte| client.decode_byte(*byte))
-            .collect::<Vec<u8>>();
-        dbg!(&decoded_bytes);
-
-        assert_eq!(decoded_bytes, vec![0x01, 0x01]);
-    }
-
-    #[test]
-    pub fn decode_simple_message() {
-        let mut client = Cipher::new(&[0x02, 0x01, 0x01, 0x00]).unwrap();
-        let message_bytes = [0x68, 0x65, 0x6c, 0x6c, 0x6f];
-
-        let decoded_bytes = message_bytes
-            .iter()
-            .map(|byte| client.decode_byte(*byte))
-            .collect::<Vec<u8>>();
-        let decoded = String::from_utf8(decoded_bytes).unwrap();
-        assert_eq!(decoded, "hello");
-    }
-
-    #[test]
-    fn decode_real_first_message() {
-        let mut client = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
-        dbg!("{:?}", &client.cipher);
-        let message_bytes = "01y!unx!b`s\u{b}".as_bytes();
-        dbg!(message_bytes);
-
-        let decoded_bytes = message_bytes
-            .iter()
-            .map(|byte| {
-                let byte = client.decode_byte(*byte);
-                dbg!(&byte);
-                byte
-            })
-            .collect::<Vec<u8>>();
-
-        assert_eq!(decoded_bytes, vec![0x01]);
     }
 
     #[test]

@@ -79,14 +79,9 @@ impl Session {
         info!("Reading line with cipher: {:?}", self.cipher);
         loop {
             let byte = self.reader.read_u8().await?;
-            info!("Read byte: {:x}", byte);
             let decoded_byte = self.cipher.decode_byte(byte);
             info!("Decoded byte: {:x} into {:x}", byte, decoded_byte);
 
-            if decoded_byte == byte {
-                self.writer.shutdown().await?;
-                return Err(anyhow::anyhow!("Failed to decode byte"));
-            }
             if decoded_byte == b'\n' {
                 break;
             } else {
