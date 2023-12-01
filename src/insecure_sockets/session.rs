@@ -175,6 +175,6 @@ mod test {
     fn test_handle_message() {
         let message = "10x toy car,15x dog on a string,4x inflatable motorcycle";
         let response = handle_message(message).unwrap();
-        assert_eq!(response, "15x inflatable motorcycle");
+        assert_eq!(response, "15x dog on a string");
     }
 }
