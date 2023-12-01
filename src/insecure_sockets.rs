@@ -56,10 +56,12 @@ pub async fn connection_handler(mut stream: TcpStream, address: SocketAddr) -> a
     // Decode each byte
     let decoded_byte_stream = byte_stream.map(|chunk| {
         chunk.map(|bytes| {
-            bytes
+            let bytes = bytes
                 .iter()
                 .map(|b| client.borrow_mut().decode_byte(*b))
-                .collect::<Bytes>()
+                .collect::<Bytes>();
+            info!("{:?}", &bytes);
+            bytes
         })
     });
 
