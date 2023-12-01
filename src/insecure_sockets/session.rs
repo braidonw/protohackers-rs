@@ -105,7 +105,7 @@ impl Session {
 pub fn handle_message(message: &str) -> Result<String> {
     let mut jobs = parse_message(message)?;
     jobs.sort();
-    let response: String = jobs.iter().take(1).map(|j| j.to_string()).collect();
+    let response: String = jobs.iter().rev().take(1).map(|j| j.to_string()).collect();
     Ok(response)
 }
 
@@ -151,5 +151,30 @@ mod test {
         assert!(jobs[1].toy == "dog on a string");
         assert!(jobs[2].copies == 4);
         assert!(jobs[2].toy == "inflatable motorcycle");
+    }
+
+    #[test]
+    fn test_parse_message2() {
+        let message = "10x toy car,15x dog on a string,4x inflatable motorcycle,95x test toy";
+        let jobs = parse_message(message).unwrap();
+
+        dbg!(&jobs);
+
+        assert!(jobs.len() == 4);
+        assert!(jobs[0].copies == 10);
+        assert!(jobs[0].toy == "toy car");
+        assert!(jobs[1].copies == 15);
+        assert!(jobs[1].toy == "dog on a string");
+        assert!(jobs[2].copies == 4);
+        assert!(jobs[2].toy == "inflatable motorcycle");
+        assert!(jobs[3].copies == 95);
+        assert!(jobs[3].toy == "test toy");
+    }
+
+    #[test]
+    fn test_handle_message() {
+        let message = "10x toy car,15x dog on a string,4x inflatable motorcycle";
+        let response = handle_message(message).unwrap();
+        assert_eq!(response, "15x inflatable motorcycle");
     }
 }
