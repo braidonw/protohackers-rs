@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use anyhow::Result;
+use log::info;
 use nom::{
     branch::alt,
     bytes::{self, complete::tag},
@@ -40,8 +41,8 @@ impl Cipher {
         })
     }
 
-    pub fn decode_byte(&mut self, byte: u8) -> u8 {
-        let mut byte = byte;
+    pub fn decode_byte(&mut self, from_byte: u8) -> u8 {
+        let mut byte = from_byte;
         for operation in self.cipher.iter().rev() {
             match operation {
                 Operation::ReverseBits => {
@@ -64,7 +65,7 @@ impl Cipher {
                 }
             }
         }
-        dbg!(&byte);
+        info!("Decoded byte: {from_byte} to {byte}");
         self.incoming_position += 1;
         byte
     }
@@ -183,7 +184,7 @@ mod test {
     #[test]
     pub fn decode_simple_message() {
         let mut client = Cipher::new(&[0x02, 0x01, 0x01, 0x00]).unwrap();
-        let message_bytes = vec![0x68, 0x65, 0x6c, 0x6c, 0x6f];
+        let message_bytes = [0x68, 0x65, 0x6c, 0x6c, 0x6f];
 
         let decoded_bytes = message_bytes
             .iter()
