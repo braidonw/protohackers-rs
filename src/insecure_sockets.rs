@@ -2,6 +2,7 @@ mod protocol;
 mod session;
 use anyhow::Result;
 use log::info;
+use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 
 pub async fn run(port: &str) -> anyhow::Result<()> {
@@ -11,20 +12,23 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
 
     loop {
         let (stream, address) = listener.accept().await?;
-        info!("Accepted connection from {}", address);
 
-        tokio::spawn(handle_connection(stream));
+        tokio::spawn(async move {
+            handle_connection(stream, address)
+                .await
+                .expect("Connection handler error")
+        });
     }
 }
 
-async fn handle_connection(stream: TcpStream) -> Result<()> {
-    info!("Handling connection...");
+async fn handle_connection(stream: TcpStream, address: SocketAddr) -> Result<()> {
+    info!("Accepted connection from {}", address);
     let mut session = session::Session::new(stream).await?;
 
     loop {
         let line = session.read_line().await?;
         let response = session::handle_message(&line)?;
-        info!("Sending response: {}", response);
+        info!("Sending response to address: {} -> {}", response, address);
         session.write_line(response).await?;
     }
 }
