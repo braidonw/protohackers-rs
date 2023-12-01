@@ -6,12 +6,12 @@ use nom::{
     multi, IResult,
 };
 
-const REVERSE_BITS: &[u8] = &[0x01];
-const XOR: &[u8] = &[0x02];
-const XOR_POSITION: &[u8] = &[0x03];
-const ADD: &[u8] = &[0x04];
-const ADD_POSITION: &[u8] = &[0x05];
-const CIPHER_END: &[u8] = &[0x00];
+const REVERSE_BITS: &[u8] = &[0x01]; //1
+const XOR: &[u8] = &[0x02]; //2
+const XOR_POSITION: &[u8] = &[0x03]; //3
+const ADD: &[u8] = &[0x04]; //4
+const ADD_POSITION: &[u8] = &[0x05]; //5
+const CIPHER_END: &[u8] = &[0x00]; //6
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operation {
@@ -49,27 +49,12 @@ impl Cipher {
         let mut byte = input;
         for operation in self.cipher.iter().rev() {
             match operation {
-                Operation::CipherEnd => {
-                    continue;
-                }
-
-                Operation::ReverseBits => {
-                    byte = byte.reverse_bits();
-                }
-
+                Operation::ReverseBits => byte = byte.reverse_bits(),
                 Operation::Xor { n } => byte ^= n,
-
-                Operation::XorPosition => {
-                    byte ^= self.incoming_position as u8;
-                }
-
-                Operation::Add { n } => {
-                    byte = byte.wrapping_add(*n);
-                }
-
-                Operation::AddPosition => {
-                    byte = byte.wrapping_add(self.incoming_position as u8);
-                }
+                Operation::XorPosition => byte ^= self.incoming_position as u8,
+                Operation::Add { n } => byte = byte.wrapping_sub(*n),
+                Operation::AddPosition => byte = byte.wrapping_sub(self.incoming_position as u8),
+                Operation::CipherEnd => {}
             }
         }
         self.incoming_position += 1;
@@ -80,29 +65,12 @@ impl Cipher {
         let mut byte = byte;
         for operation in self.cipher.iter() {
             match operation {
-                Operation::ReverseBits => {
-                    byte = byte.reverse_bits();
-                }
-
-                Operation::Xor { n } => {
-                    byte ^= n;
-                }
-
-                Operation::XorPosition => {
-                    byte ^= self.outgoing_position as u8;
-                }
-
-                Operation::Add { n } => {
-                    byte = byte.wrapping_add(*n);
-                }
-
-                Operation::AddPosition => {
-                    byte = byte.wrapping_add(self.outgoing_position as u8);
-                }
-
-                Operation::CipherEnd => {
-                    break;
-                }
+                Operation::ReverseBits => byte = byte.reverse_bits(),
+                Operation::Xor { n } => byte ^= n,
+                Operation::XorPosition => byte ^= self.outgoing_position as u8,
+                Operation::Add { n } => byte = byte.wrapping_add(*n),
+                Operation::AddPosition => byte = byte.wrapping_add(self.outgoing_position as u8),
+                Operation::CipherEnd => {}
             }
         }
         self.outgoing_position += 1;
@@ -117,6 +85,20 @@ impl Cipher {
 
         if out == bytes {
             return Err(anyhow::anyhow!("Failed to encode bytes"));
+        }
+
+        Ok(out)
+    }
+
+    // For testing
+    pub fn decode(&mut self, bytes: &[u8]) -> Result<Vec<u8>> {
+        let out = bytes
+            .iter()
+            .map(|b| self.decode_byte(*b))
+            .collect::<Vec<u8>>();
+
+        if out == bytes {
+            return Err(anyhow::anyhow!("Failed to decode bytes"));
         }
 
         Ok(out)
@@ -174,8 +156,6 @@ fn parse_cipher_end(bytes: &[u8]) -> IResult<&[u8], Operation> {
 
 #[cfg(test)]
 mod test {
-    use nom::AsBytes;
-
     use super::*;
 
     #[test]
@@ -258,6 +238,88 @@ mod test {
             encoded = server.encode(responses[i].as_bytes()).unwrap();
             decoded = client.encode(&encoded).unwrap();
             assert_eq!(decoded, responses[i].as_bytes());
+        }
+    }
+
+    #[test]
+    pub fn complex_cipher() -> anyhow::Result<()> {
+        let messages = [
+            "55x life-size bear on a string,87x giant plastic mobile phone with carry case,40x pocket-size metal quadcopter simulator,34x soft rubber inflatable quadcopter with carry case,100x pocket-size cuddly pony toy\n",
+            "21x small inflatable cow simulator,52x pocket-size plastic inflatable motorcycle toy,85x giant duck-billed platypus with remote-controlled train simulator,23x soft rubber pony,76x small soft rubber goat\n",
+        ];
+
+        let responses = [
+            "100x pocket-size cuddly pony toy\n",
+            "85x giant duck-billed platypus with remote-controlled train simulator\n",
+        ];
+
+        let cipher_bytes = [2, 110, 4, 215, 3, 1, 4, 5, 1, 0];
+
+        let mut client_cipher = Cipher::new(&cipher_bytes)?;
+        let mut server_cipher = Cipher::new(&cipher_bytes)?;
+
+        assert_eq!(
+            client_cipher.cipher,
+            vec![
+                Operation::Xor { n: 110 },
+                Operation::Add { n: 215 },
+                Operation::XorPosition,
+                Operation::ReverseBits,
+                Operation::Add { n: 5 },
+                Operation::ReverseBits,
+                Operation::CipherEnd,
+            ],
+        );
+
+        for i in 0..messages.len() {
+            let mut encoded = client_cipher.encode(messages[i].as_bytes()).unwrap();
+            let mut decoded = server_cipher.decode(&encoded).unwrap();
+            dbg!(&server_cipher, &client_cipher);
+            assert_eq!(decoded, messages[i].as_bytes());
+
+            encoded = server_cipher.encode(responses[i].as_bytes()).unwrap();
+            decoded = client_cipher.decode(&encoded).unwrap();
+            dbg!(&server_cipher, &client_cipher);
+            assert_eq!(decoded, responses[i].as_bytes());
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_applying_operations() {
+        let message = b"hello";
+
+        for operation in &[
+            Operation::ReverseBits,
+            Operation::Xor { n: 0x01 },
+            Operation::XorPosition,
+            Operation::Add { n: 0x01 },
+            Operation::Add { n: 0x20 },
+            Operation::Add { n: 0xFF },
+            Operation::Add { n: 0xf0 },
+            Operation::AddPosition,
+            Operation::CipherEnd,
+        ] {
+            let operation = operation.clone();
+            dbg!(&operation);
+            let mut cipher = Cipher {
+                cipher: vec![operation],
+                incoming_position: 0,
+                outgoing_position: 0,
+            };
+
+            let encoded = message
+                .iter()
+                .map(|byte| cipher.encode_byte(*byte))
+                .collect::<Vec<u8>>();
+
+            let decoded = encoded
+                .iter()
+                .map(|byte| cipher.decode_byte(*byte))
+                .collect::<Vec<u8>>();
+
+            assert_eq!(decoded, message);
         }
     }
 }
