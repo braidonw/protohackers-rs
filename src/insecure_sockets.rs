@@ -65,8 +65,10 @@ pub async fn connection_handler(mut stream: TcpStream, address: SocketAddr) -> a
 
     // Create StreamReader to read each decoded line
     let mut reader = StreamReader::new(decoded_byte_stream);
-
     let mut message = String::new();
+
+    message.clear(); //Probably unneccesary
+
     while let Ok(_num_bytes) = reader.read_line(&mut message).await {
         info!("Received message: {:?}", message);
 

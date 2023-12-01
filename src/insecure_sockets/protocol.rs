@@ -81,6 +81,7 @@ impl Client {
                 }
             }
         }
+        dbg!(&byte);
         byte
     }
 
