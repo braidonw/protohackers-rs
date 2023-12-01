@@ -48,9 +48,7 @@ impl Cipher {
                 Operation::ReverseBits => {
                     byte = byte.reverse_bits();
                 }
-                Operation::Xor { n } => {
-                    byte ^= n;
-                }
+                Operation::Xor { n } => byte ^= n,
                 Operation::XorPosition => {
                     byte ^= self.incoming_position as u8;
                 }
@@ -191,6 +189,34 @@ mod test {
             .collect::<Vec<u8>>();
         let decoded = String::from_utf8(decoded_bytes).unwrap();
         assert_eq!(decoded, "hello");
+    }
+
+    #[test]
+    fn decode_real_first_message() {
+        let mut client = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
+        dbg!("{:?}", &client.cipher);
+        let message_bytes = "01y!unx!b`s\u{b}".as_bytes();
+        dbg!(message_bytes);
+
+        let decoded_bytes = message_bytes
+            .iter()
+            .map(|byte| client.decode_byte(*byte))
+            .collect::<Vec<u8>>();
+
+        assert_eq!(decoded_bytes, message_bytes);
+    }
+
+    #[test]
+    fn test_encoding() {
+        let mut client = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
+        let message = "hello".as_bytes();
+
+        let encoded = message
+            .iter()
+            .map(|byte| client.encode_byte(*byte))
+            .collect::<Vec<u8>>();
+
+        assert_eq!(encoded, message);
     }
 
     #[test]

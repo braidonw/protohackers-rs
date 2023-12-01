@@ -78,8 +78,7 @@ impl Session {
         loop {
             let byte = self.reader.read_u8().await?;
             let decoded_byte = self.cipher.decode_byte(byte);
-            info!("Decoded byte: {} to {}", byte, decoded_byte);
-            info!("Cipher State: {:?}", self.cipher);
+            info!("Decoded byte: {:x} into {:x}", byte, decoded_byte);
             if decoded_byte == b'\n' {
                 break;
             } else {
