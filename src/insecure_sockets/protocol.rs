@@ -40,6 +40,11 @@ impl Cipher {
         })
     }
 
+    pub fn with_position(&mut self, incoming_position: usize, outgoing_position: usize) {
+        self.incoming_position = incoming_position;
+        self.outgoing_position = outgoing_position;
+    }
+
     pub fn decode_byte(&mut self, input: u8) -> u8 {
         let mut byte = input;
         for operation in self.cipher.iter().rev() {
@@ -78,20 +83,25 @@ impl Cipher {
                 Operation::ReverseBits => {
                     byte = byte.reverse_bits();
                 }
+
                 Operation::Xor { n } => {
                     byte ^= n;
                 }
+
                 Operation::XorPosition => {
                     byte ^= self.outgoing_position as u8;
                 }
+
                 Operation::Add { n } => {
                     byte = byte.wrapping_add(*n);
                 }
+
                 Operation::AddPosition => {
                     byte = byte.wrapping_add(self.outgoing_position as u8);
                 }
+
                 Operation::CipherEnd => {
-                    continue;
+                    break;
                 }
             }
         }
@@ -164,6 +174,8 @@ fn parse_cipher_end(bytes: &[u8]) -> IResult<&[u8], Operation> {
 
 #[cfg(test)]
 mod test {
+    use nom::AsBytes;
+
     use super::*;
 
     #[test]
@@ -209,6 +221,7 @@ mod test {
         assert_eq!(encoded, vec![0x96, 0x26, 0xb6, 0xb6, 0x76]);
     }
 
+    #[test]
     pub fn encode_medium_message() {
         let mut client = Cipher::new(&[0x05, 0x05, 0x00]).unwrap();
         let message = "hello";
@@ -220,5 +233,31 @@ mod test {
             .collect::<Vec<u8>>();
 
         assert_eq!(encoded, vec![0x68, 0x67, 0x70, 0x72, 0x77]);
+    }
+
+    #[test]
+    pub fn example_session() {
+        let messages = [
+            "55x life-size bear on a string,87x giant plastic mobile phone with carry case,40x pocket-size metal quadcopter simulator,34x soft rubber inflatable quadcopter with carry case,100x pocket-size cuddly pony toy\n",
+            "21x small inflatable cow simulator,52x pocket-size plastic inflatable motorcycle toy,85x giant duck-billed platypus with remote-controlled train simulator,23x soft rubber pony,76x small soft rubber goat\n",
+        ];
+
+        let responses = [
+            "100x pocket-size cuddly pony toy\n",
+            "85x giant duck-billed platypus with remote-controlled train simulator\n",
+        ];
+
+        let mut client = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
+        let mut server = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
+
+        for i in 0..messages.len() {
+            let mut encoded = client.encode(messages[i].as_bytes()).unwrap();
+            let mut decoded = server.encode(&encoded).unwrap();
+            assert_eq!(decoded, messages[i].as_bytes());
+
+            encoded = server.encode(responses[i].as_bytes()).unwrap();
+            decoded = client.encode(&encoded).unwrap();
+            assert_eq!(decoded, responses[i].as_bytes());
+        }
     }
 }

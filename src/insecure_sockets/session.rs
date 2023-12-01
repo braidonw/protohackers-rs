@@ -94,7 +94,6 @@ impl Session {
         let encoded_bytes = self.cipher.encode(line.as_bytes())?;
 
         self.writer.write_all(&encoded_bytes).await?;
-        self.writer.write_u8(b'\n').await?;
         self.writer.flush().await?;
         Ok(())
     }
