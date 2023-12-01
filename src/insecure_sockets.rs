@@ -24,6 +24,7 @@ async fn handle_connection(stream: TcpStream) -> Result<()> {
     loop {
         let line = session.read_line().await?;
         let response = session::handle_message(&line)?;
-        session.write_line(&response).await?;
+        info!("Sending response: {}", response);
+        session.write_line(response).await?;
     }
 }

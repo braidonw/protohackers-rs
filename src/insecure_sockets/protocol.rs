@@ -98,6 +98,19 @@ impl Cipher {
         self.outgoing_position += 1;
         byte
     }
+
+    pub fn encode(&mut self, bytes: &[u8]) -> Result<Vec<u8>> {
+        let out = bytes
+            .iter()
+            .map(|b| self.encode_byte(*b))
+            .collect::<Vec<u8>>();
+
+        if out == bytes {
+            return Err(anyhow::anyhow!("Failed to encode bytes"));
+        }
+
+        Ok(out)
+    }
 }
 
 fn parse_cipher_spec(bytes: &[u8]) -> Result<Vec<Operation>> {

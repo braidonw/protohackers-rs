@@ -92,13 +92,12 @@ impl Session {
         Ok(line)
     }
 
-    pub async fn write_line(&mut self, line: &str) -> Result<()> {
+    pub async fn write_line(&mut self, mut line: String) -> Result<()> {
         info!("Sending line: {}", line);
-        let encoded_bytes: Vec<u8> = line
-            .as_bytes()
-            .iter()
-            .map(|b| self.cipher.encode_byte(*b))
-            .collect();
+        line.push('\n');
+
+        let encoded_bytes = self.cipher.encode(line.as_bytes())?;
+        info!("Encoded bytes: {:?}", encoded_bytes);
 
         self.writer.write_all(&encoded_bytes).await?;
         self.writer.write_u8(b'\n').await?;
