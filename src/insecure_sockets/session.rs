@@ -4,9 +4,7 @@ use super::protocol::Cipher;
 use anyhow::Result;
 use log::info;
 use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, space1},
+    bytes::complete::{is_not, tag},
     multi::{many1, separated_list1},
     sequence::separated_pair,
     IResult,
@@ -128,7 +126,7 @@ fn parse_copies(s: &str) -> IResult<&str, usize> {
 }
 
 fn parse_toy(s: &str) -> IResult<&str, String> {
-    let (s, toy) = many1(alt((alpha1, space1)))(s)?;
+    let (s, toy) = many1(is_not(","))(s)?;
     let toy = toy.join("");
     Ok((s, toy.to_string()))
 }
