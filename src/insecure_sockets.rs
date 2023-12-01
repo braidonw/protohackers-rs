@@ -65,14 +65,16 @@ pub async fn connection_handler(mut stream: TcpStream, address: SocketAddr) -> a
 
     // Create StreamReader to read each decoded line
     let mut reader = StreamReader::new(decoded_byte_stream);
-    let mut message = String::new();
+    let mut message = Vec::new();
 
     message.clear(); //Probably unneccesary
 
-    while let Ok(_num_bytes) = reader.read_line(&mut message).await {
+    while let Ok(_num_bytes) = reader.read_until(b'\n', &mut message).await {
         info!("Received message: {:?}", message);
 
-        let response = insecure_sockets::server::handle_message(&message)?;
+        let message_str = String::from_utf8(message.clone())?;
+
+        let response = insecure_sockets::server::handle_message(&message_str)?;
         info!("Sending response: {:?}", response);
 
         let response_bytes = client.borrow_mut().encode(response)?;
