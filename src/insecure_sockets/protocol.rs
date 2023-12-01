@@ -43,7 +43,6 @@ impl Client {
     pub fn decode(&mut self, bytes: &mut [u8]) -> Result<String> {
         for byte in bytes.iter_mut() {
             *byte = self.decode_byte(*byte);
-            self.incoming_position += 1;
         }
         Ok(String::from_utf8_lossy(bytes).to_string())
     }
@@ -52,7 +51,6 @@ impl Client {
         let mut bytes = s.into_bytes();
         for byte in bytes.iter_mut() {
             *byte = self.encode_byte(*byte);
-            self.outgoing_position += 1;
         }
         Ok(bytes)
     }
@@ -82,6 +80,7 @@ impl Client {
             }
         }
         dbg!(&byte);
+        self.incoming_position += 1;
         byte
     }
 
@@ -109,6 +108,7 @@ impl Client {
                 }
             }
         }
+        self.outgoing_position += 1;
         byte
     }
 }
