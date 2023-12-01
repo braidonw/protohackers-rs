@@ -8,6 +8,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_stream::StreamExt;
 use tokio_util::bytes::Bytes;
+use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::insecure_sockets;
@@ -66,27 +67,32 @@ pub async fn connection_handler(mut stream: TcpStream, address: SocketAddr) -> a
     });
 
     // Create StreamReader to read each decoded line
-    let mut reader = StreamReader::new(decoded_byte_stream);
-    let mut message = Vec::new();
+    let reader = StreamReader::new(decoded_byte_stream);
 
-    message.clear(); //Probably unneccesary
+    let mut read_framed = FramedRead::new(reader, LinesCodec::new());
 
-    while let Ok(_num_bytes) = reader.read(&mut message).await {
-        info!("Received message: {:?}", message);
-
-        let message_str = String::from_utf8(message.clone())?;
-        info!("Received message_str: {:?}", message_str);
-
-        let response = insecure_sockets::server::handle_message(&message_str)?;
-        info!("Sending response: {:?}", response);
-
-        let response_bytes = client.borrow_mut().encode(response)?;
-
-        write_half.write_all(&response_bytes).await?;
-        write_half.write_u8(0x00).await?;
-
-        message.clear();
+    while let Some(item) = read_framed.next().await {
+        info!("Received message: {:?}", item?);
     }
+
+    // message.clear(); //Probably unneccesary
+    //
+    // while let Ok(_num_bytes) = reader.read(&mut message).await {
+    //     info!("Received message: {:?}", message);
+    //
+    //     let message_str = String::from_utf8(message.clone())?;
+    //     info!("Received message_str: {:?}", message_str);
+    //
+    //     let response = insecure_sockets::server::handle_message(&message_str)?;
+    //     info!("Sending response: {:?}", response);
+    //
+    //     let response_bytes = client.borrow_mut().encode(response)?;
+    //
+    //     write_half.write_all(&response_bytes).await?;
+    //     write_half.write_u8(0x00).await?;
+    //
+    //     message.clear();
+    // }
 
     Ok(())
 }
