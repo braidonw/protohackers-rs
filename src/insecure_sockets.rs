@@ -18,6 +18,7 @@ pub async fn run(port: &str) -> anyhow::Result<()> {
 }
 
 async fn handle_connection(stream: TcpStream) -> Result<()> {
+    info!("Handling connection...");
     let mut session = session::Session::new(stream).await?;
 
     loop {

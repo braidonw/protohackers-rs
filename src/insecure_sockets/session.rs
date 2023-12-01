@@ -2,6 +2,7 @@
 
 use super::protocol::Cipher;
 use anyhow::Result;
+use log::info;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -63,6 +64,7 @@ impl Session {
         let _bytes_read = reader.read_until(0x00, &mut buffer).await?;
 
         let cipher = Cipher::new(&buffer)?;
+        info!("New cipher: {:?}", cipher);
 
         Ok(Self {
             reader,
@@ -82,10 +84,12 @@ impl Session {
                 line.push(decoded_byte as char);
             }
         }
+        info!("Received line: {}", line);
         Ok(line)
     }
 
     pub async fn write_line(&mut self, line: &str) -> Result<()> {
+        info!("Sending line: {}", line);
         let encoded_bytes: Vec<u8> = line
             .as_bytes()
             .iter()
