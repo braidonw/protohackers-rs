@@ -75,6 +75,7 @@ impl Session {
 
     pub async fn read_line(&mut self) -> Result<String> {
         let mut line = String::new();
+        info!("Reading line with cipher: {:?}", self.cipher);
         loop {
             let byte = self.reader.read_u8().await?;
             let decoded_byte = self.cipher.decode_byte(byte);
