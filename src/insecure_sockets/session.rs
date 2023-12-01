@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
-use super::protocol::Client;
+use super::protocol::Cipher;
 use anyhow::Result;
-use log::info;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -12,15 +11,18 @@ use nom::{
     IResult,
 };
 use std::fmt::{Display, Formatter};
-use std::net::SocketAddr;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::TcpStream,
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
 };
 
-pub struct Server {
-    client: Option<Client>,
-    address: SocketAddr,
+pub struct Session {
+    reader: BufReader<OwnedReadHalf>,
+    writer: OwnedWriteHalf,
+    cipher: Cipher,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -53,45 +55,45 @@ impl Display for Job {
     }
 }
 
-impl Server {
-    pub fn new(address: SocketAddr) -> Result<Self> {
+impl Session {
+    pub async fn new(stream: TcpStream) -> Result<Self> {
+        let (read_half, write_half) = stream.into_split();
+        let mut reader = BufReader::new(read_half);
+        let mut buffer = Vec::new();
+        let _bytes_read = reader.read_until(0x00, &mut buffer).await?;
+
+        let cipher = Cipher::new(&buffer)?;
+
         Ok(Self {
-            client: None,
-            address,
+            reader,
+            writer: write_half,
+            cipher,
         })
     }
 
-    fn handle_request(&mut self, bytes: &mut [u8]) -> Result<Vec<u8>> {
-        let message = self.client.as_mut().expect("No client").decode(bytes)?;
-        let response = handle_message(&message)?;
-        let response_bytes = self.client.as_mut().expect("No client").encode(response)?;
-        Ok(response_bytes)
+    pub async fn read_line(&mut self) -> Result<String> {
+        let mut line = String::new();
+        loop {
+            let byte = self.reader.read_u8().await?;
+            let decoded_byte = self.cipher.decode_byte(byte);
+            if decoded_byte == b'\n' {
+                break;
+            } else {
+                line.push(decoded_byte as char);
+            }
+        }
+        Ok(line)
     }
 
-    pub async fn run(mut self, stream: TcpStream) -> Result<()> {
-        info!("Running insecure sockets server for {}...", &self.address);
-        let mut reader = BufReader::new(stream);
-        let mut line = String::new();
+    pub async fn write_line(&mut self, line: &str) -> Result<()> {
+        let encoded_bytes: Vec<u8> = line
+            .as_bytes()
+            .iter()
+            .map(|b| self.cipher.encode_byte(*b))
+            .collect();
 
-        reader.read_line(&mut line).await?;
-        info!("Received cipher: {}", line);
-        let client = Client::new(line.as_bytes())?;
-        info!("Initialized client with cipher: {:?}", client.cipher);
-        self.client = Some(client);
-        line.clear();
-
-        while let Ok(num_bytes) = reader.read_line(&mut line).await {
-            if num_bytes == 0 {
-                break;
-            }
-
-            let response = self.handle_request(unsafe { line.as_bytes_mut() })?;
-
-            reader.write_all(&response).await?;
-            reader.write_u8(10).await?;
-            line.clear();
-        }
-
+        self.writer.write_all(&encoded_bytes).await?;
+        self.writer.flush().await?;
         Ok(())
     }
 }

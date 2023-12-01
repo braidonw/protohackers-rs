@@ -24,13 +24,13 @@ pub enum Operation {
 }
 
 #[derive(Debug)]
-pub struct Client {
+pub struct Cipher {
     pub cipher: Vec<Operation>,
     pub incoming_position: usize,
     pub outgoing_position: usize,
 }
 
-impl Client {
+impl Cipher {
     pub fn new(bytes: &[u8]) -> Result<Self> {
         let operations = parse_cipher_spec(bytes)?;
         Ok(Self {
@@ -38,21 +38,6 @@ impl Client {
             incoming_position: 0,
             outgoing_position: 0,
         })
-    }
-
-    pub fn decode(&mut self, bytes: &mut [u8]) -> Result<String> {
-        for byte in bytes.iter_mut() {
-            *byte = self.decode_byte(*byte);
-        }
-        Ok(String::from_utf8_lossy(bytes).to_string())
-    }
-
-    pub fn encode(&mut self, s: String) -> Result<Vec<u8>> {
-        let mut bytes = s.into_bytes();
-        for byte in bytes.iter_mut() {
-            *byte = self.encode_byte(*byte);
-        }
-        Ok(bytes)
     }
 
     pub fn decode_byte(&mut self, byte: u8) -> u8 {
@@ -197,27 +182,41 @@ mod test {
 
     #[test]
     pub fn decode_simple_message() {
-        let mut client = Client::new(&[0x02, 0x01, 0x01, 0x00]).unwrap();
+        let mut client = Cipher::new(&[0x02, 0x01, 0x01, 0x00]).unwrap();
         let message_bytes = vec![0x68, 0x65, 0x6c, 0x6c, 0x6f];
 
-        let decoded = client.decode(&mut message_bytes.clone()).unwrap();
+        let decoded_bytes = message_bytes
+            .iter()
+            .map(|byte| client.decode_byte(*byte))
+            .collect::<Vec<u8>>();
+        let decoded = String::from_utf8(decoded_bytes).unwrap();
         assert_eq!(decoded, "hello");
     }
 
     #[test]
     pub fn encode_simple_message() {
-        let mut client = Client::new(&[0x02, 0x01, 0x01, 0x00]).unwrap();
+        let mut client = Cipher::new(&[0x02, 0x01, 0x01, 0x00]).unwrap();
         let message = "hello";
 
-        let encoded = client.encode(message.to_string()).unwrap();
+        let encoded = message
+            .as_bytes()
+            .iter()
+            .map(|byte| client.encode_byte(*byte))
+            .collect::<Vec<u8>>();
+
         assert_eq!(encoded, vec![0x96, 0x26, 0xb6, 0xb6, 0x76]);
     }
 
     pub fn encode_medium_message() {
-        let mut client = Client::new(&[0x05, 0x05, 0x00]).unwrap();
+        let mut client = Cipher::new(&[0x05, 0x05, 0x00]).unwrap();
         let message = "hello";
 
-        let encoded = client.encode(message.to_string()).unwrap();
+        let encoded = message
+            .as_bytes()
+            .iter()
+            .map(|byte| client.encode_byte(*byte))
+            .collect::<Vec<u8>>();
+
         assert_eq!(encoded, vec![0x68, 0x67, 0x70, 0x72, 0x77]);
     }
 }
