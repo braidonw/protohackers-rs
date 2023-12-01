@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use anyhow::Result;
-use log::info;
 use nom::{
     branch::alt,
     bytes::{self, complete::tag},
@@ -92,7 +91,7 @@ impl Cipher {
                     byte = byte.wrapping_add(self.outgoing_position as u8);
                 }
                 Operation::CipherEnd => {
-                    break;
+                    continue;
                 }
             }
         }

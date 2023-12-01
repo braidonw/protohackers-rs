@@ -101,6 +101,7 @@ impl Session {
             .collect();
 
         self.writer.write_all(&encoded_bytes).await?;
+        self.writer.write_u8(b'\n').await?;
         self.writer.flush().await?;
         Ok(())
     }
