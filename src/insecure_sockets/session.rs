@@ -80,7 +80,6 @@ impl Session {
         loop {
             let byte = self.reader.read_u8().await?;
             let decoded_byte = self.cipher.decode_byte(byte);
-            info!("Decoded byte: {:x} into {:x}", byte, decoded_byte);
 
             if decoded_byte == b'\n' {
                 break;
@@ -93,11 +92,8 @@ impl Session {
     }
 
     pub async fn write_line(&mut self, mut line: String) -> Result<()> {
-        info!("Sending line: {}", line);
         line.push('\n');
-
         let encoded_bytes = self.cipher.encode(line.as_bytes())?;
-        info!("Encoded bytes: {:?}", encoded_bytes);
 
         self.writer.write_all(&encoded_bytes).await?;
         self.writer.write_u8(b'\n').await?;
