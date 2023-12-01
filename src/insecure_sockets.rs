@@ -4,7 +4,7 @@ use log::info;
 use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::rc::Rc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_stream::StreamExt;
 use tokio_util::bytes::Bytes;
@@ -69,10 +69,11 @@ pub async fn connection_handler(mut stream: TcpStream, address: SocketAddr) -> a
 
     message.clear(); //Probably unneccesary
 
-    while let Ok(_num_bytes) = reader.read_until(b'\n', &mut message).await {
+    while let Ok(_num_bytes) = reader.read(&mut message).await {
         info!("Received message: {:?}", message);
 
         let message_str = String::from_utf8(message.clone())?;
+        info!("Received message_str: {:?}", message_str);
 
         let response = insecure_sockets::server::handle_message(&message_str)?;
         info!("Sending response: {:?}", response);
