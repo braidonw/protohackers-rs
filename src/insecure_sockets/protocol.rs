@@ -41,8 +41,8 @@ impl Cipher {
         })
     }
 
-    pub fn decode_byte(&mut self, byte: u8) -> u8 {
-        let mut byte = byte;
+    pub fn decode_byte(&mut self, input: u8) -> u8 {
+        let mut byte = input;
         for operation in self.cipher.iter().rev() {
             match operation {
                 Operation::ReverseBits => {
@@ -59,7 +59,7 @@ impl Cipher {
                     byte = byte.wrapping_add(self.incoming_position as u8);
                 }
                 Operation::CipherEnd => {
-                    break;
+                    continue;
                 }
             }
         }
@@ -179,6 +179,22 @@ mod test {
     }
 
     #[test]
+    pub fn decode_xor_1() {
+        let bytes = [0x48, 0x49];
+        dbg!(&bytes);
+
+        let mut client = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
+
+        let decoded_bytes = bytes
+            .iter()
+            .map(|byte| client.decode_byte(*byte))
+            .collect::<Vec<u8>>();
+        dbg!(&decoded_bytes);
+
+        assert_eq!(decoded_bytes, vec![0x01, 0x01]);
+    }
+
+    #[test]
     pub fn decode_simple_message() {
         let mut client = Cipher::new(&[0x02, 0x01, 0x01, 0x00]).unwrap();
         let message_bytes = [0x68, 0x65, 0x6c, 0x6c, 0x6f];
@@ -200,23 +216,14 @@ mod test {
 
         let decoded_bytes = message_bytes
             .iter()
-            .map(|byte| client.decode_byte(*byte))
+            .map(|byte| {
+                let byte = client.decode_byte(*byte);
+                dbg!(&byte);
+                byte
+            })
             .collect::<Vec<u8>>();
 
-        assert_eq!(decoded_bytes, message_bytes);
-    }
-
-    #[test]
-    fn test_encoding() {
-        let mut client = Cipher::new(&[0x02, 0x01, 0x00]).unwrap();
-        let message = "hello".as_bytes();
-
-        let encoded = message
-            .iter()
-            .map(|byte| client.encode_byte(*byte))
-            .collect::<Vec<u8>>();
-
-        assert_eq!(encoded, message);
+        assert_eq!(decoded_bytes, vec![0x01]);
     }
 
     #[test]

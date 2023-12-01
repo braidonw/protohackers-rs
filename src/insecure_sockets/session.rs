@@ -62,6 +62,7 @@ impl Session {
         let mut reader = BufReader::new(read_half);
         let mut buffer = Vec::new();
         let _bytes_read = reader.read_until(0x00, &mut buffer).await?;
+        info!("Read buffer: {:?}", buffer);
 
         let cipher = Cipher::new(&buffer)?;
         info!("New cipher: {:?}", cipher);
