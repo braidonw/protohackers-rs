@@ -57,7 +57,7 @@ impl Client {
         Ok(bytes)
     }
 
-    fn decode_byte(&mut self, byte: u8) -> u8 {
+    pub fn decode_byte(&mut self, byte: u8) -> u8 {
         let mut byte = byte;
         for operation in self.cipher.iter().rev() {
             match operation {
@@ -84,7 +84,7 @@ impl Client {
         byte
     }
 
-    fn encode_byte(&mut self, byte: u8) -> u8 {
+    pub fn encode_byte(&mut self, byte: u8) -> u8 {
         let mut byte = byte;
         for operation in self.cipher.iter() {
             match operation {
