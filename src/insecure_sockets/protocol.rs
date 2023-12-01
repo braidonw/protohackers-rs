@@ -41,8 +41,8 @@ impl Cipher {
         })
     }
 
-    pub fn decode_byte(&mut self, from_byte: u8) -> u8 {
-        let mut byte = from_byte;
+    pub fn decode_byte(&mut self, byte: u8) -> u8 {
+        let mut byte = byte;
         for operation in self.cipher.iter().rev() {
             match operation {
                 Operation::ReverseBits => {
@@ -65,7 +65,6 @@ impl Cipher {
                 }
             }
         }
-        info!("Decoded byte: {from_byte} to {byte}");
         self.incoming_position += 1;
         byte
     }
